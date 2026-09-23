@@ -230,6 +230,17 @@ solo-pestaña **en silencio**: el popup se cerraba y nadie se enteraba.
 *   Selector de dispositivo en opciones (para cuando Meet usa otro micro que el del sistema).
 *   Guía de diagnóstico en `README` (incl. permiso de mic en macOS).
 
+## Visibilidad del mute en popup + diagnostico (2026-09-23)
+
+Reporte: el micro seguía entrando aunque hubiera mute en Meet. Además del respeto
+al mute ya implementado:
+*   El popup muestra siempre el estado Meet (muteado / micro abierto / desconocido).
+*   Botón «Consultar ahora» (`MEET_QUERY` al content script) que devuelve en vivo
+    si está en llamada, el estado del micro y una muestra de etiquetas de botones,
+    para ampliar variantes si un idioma no está cubierto.
+*   El reporte de micro ya no depende de que la detección de llamada acierte
+    (antes, si `inCall` fallaba, el mute tampoco se reportaba).
+
 ## Ruido de fondo + micro visible (2026-09-23)
 
 Reporte: se graba mucho ruido ambiente. Mejoras:

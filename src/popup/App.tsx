@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Quality, RecordingState } from '../lib/types';
+import type { MeetStatus, Quality, RecordingState } from '../lib/types';
 import { DEFAULT_STATE } from '../lib/storage';
 import { loadDefaults } from '../lib/defaults';
 import { computeElapsedMs, formatElapsed, humanizeError } from '../lib/utils';
@@ -42,6 +42,9 @@ export default function App() {
   const [micDenied, setMicDenied] = useState(false);
   const [micLevel, setMicLevel] = useState<MicLevel | null>(null);
   const [testing, setTesting] = useState(false);
+  const [meetQuery, setMeetQuery] = useState<{ loading: boolean; result?: MeetStatus; error?: string }>({
+    loading: false,
+  });
 
   const refresh = useCallback(async () => {
     try {
@@ -162,6 +165,18 @@ export default function App() {
       setError(humanizeError(e instanceof Error ? e.message : String(e)));
       setTesting(false);
     }
+  }
+
+  async function queryMeet() {
+    setMeetQuery({ loading: true });
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'MEET_QUERY' });
+      if (res?.ok) setMeetQuery({ loading: false, result: res.data as MeetStatus });
+      else setMeetQuery({ loading: false, error: res?.error ?? 'Sin respuesta de Meet.' });
+    } catch (e) {
+      setMeetQuery({ loading: false, error: e instanceof Error ? e.message : String(e) });
+    }
+    void refresh();
   }
 
   async function dismissLastError() {
@@ -288,6 +303,27 @@ export default function App() {
         <button className="btn start" disabled={busy} onClick={handleStart}>
           {busy ? 'Iniciando…' : micDenied ? 'Grabar sin microfono' : 'Grabar esta pestana'}
         </button>
+      )}
+
+      <div className="micline">
+        <span className="mic-dim">
+          Meet: {state.meetMuted === true ? 'muteado' : state.meetMuted === false ? 'micro abierto' : 'desconocido'}
+        </span>
+        <button className="link" disabled={meetQuery.loading} onClick={queryMeet}>
+          {meetQuery.loading ? 'Consultando…' : 'Consultar ahora'}
+        </button>
+      </div>
+      {meetQuery.error && <p className="error">{meetQuery.error}</p>}
+      {meetQuery.result && (
+        <div className="notice">
+          <div>En llamada: {meetQuery.result.inCall ? 'sí' : 'no'}</div>
+          <div>
+            Micro: {meetQuery.result.micOpen === true ? 'abierto' : meetQuery.result.micOpen === false ? 'muteado' : 'desconocido'}
+          </div>
+          {meetQuery.result.micOpen === null && meetQuery.result.labels.length > 0 && (
+            <div className="mic-dim">Botones vistos: {meetQuery.result.labels.slice(0, 12).join(' · ')}</div>
+          )}
+        </div>
       )}
 
       {notice && <p className="notice">{notice}</p>}

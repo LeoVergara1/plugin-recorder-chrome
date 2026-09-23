@@ -56,7 +56,8 @@ export type PopupToSW =
   | { type: 'RESUME' }
   | { type: 'CLEAR_ERROR' }
   | { type: 'TEST_MIC_START' }
-  | { type: 'TEST_MIC_STOP' };
+  | { type: 'TEST_MIC_STOP' }
+  | { type: 'MEET_QUERY' };
 
 // Service Worker -> Offscreen
 export type SWToOffscreen =
@@ -79,6 +80,14 @@ export type OffscreenToSW =
 
 // Content (Meet) -> Service Worker
 export type ContentToSW = { type: 'MEET_ENDED' } | { type: 'MEET_MIC'; muted: boolean };
+
+/** Diagnostico en vivo del estado de Meet (para el popup). */
+export interface MeetStatus {
+  inCall: boolean;
+  micOpen: boolean | null;
+  /** Muestra de aria-labels de botones (para ampliar variantes). */
+  labels: string[];
+}
 
 export const STORAGE_KEY = 'recorder:state';
 export const DEFAULTS_KEY = 'recorder:defaults';

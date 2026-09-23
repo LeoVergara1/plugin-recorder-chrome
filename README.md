@@ -84,6 +84,10 @@ tu micro deja de entrar en la grabacion (los demas se siguen escuchando) y se
 reanuda al desmutear. El popup lo indica. Puedes desactivarlo en Opciones.
 Solo aplica a Google Meet; en otras pestanas el micro siempre queda activo.
 
+El popup muestra el estado (**Meet: muteado / micro abierto / desconocido**) con
+botón **Consultar ahora** que lee el estado en vivo. Si dice «desconocido» y tu
+Meet está en otro idioma, usa «Consultar ahora» y revisa los botones detectados.
+
 ## Ruido de fondo
 
 - La extension ya aplica supresión de ruido y eco al micro (Opciones, activado

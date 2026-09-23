@@ -154,6 +154,7 @@ const RESPONDS = new Set([
   'CLEAR_ERROR',
   'TEST_MIC_START',
   'TEST_MIC_STOP',
+  'MEET_QUERY',
 ]);
 
 chrome.runtime.onMessage.addListener(
@@ -197,6 +198,22 @@ chrome.runtime.onMessage.addListener(
         case 'TEST_MIC_STOP': {
           await forwardToOffscreen({ type: 'OFFSCREEN_TEST_STOP' });
           sendResponse({ ok: true });
+          break;
+        }
+        case 'MEET_QUERY': {
+          // Pregunta en vivo a la pestana de Meet (diagnostico + visibilidad).
+          try {
+            const tabs = await chrome.tabs.query({ url: 'https://meet.google.com/*' });
+            const tab = tabs.find((t) => t.id !== undefined) ?? tabs[0];
+            if (tab?.id === undefined) {
+              sendResponse({ ok: false, error: 'No hay ninguna pestana de Meet abierta.' });
+            } else {
+              const data = await chrome.tabs.sendMessage(tab.id, { type: 'MEET_QUERY' });
+              sendResponse({ ok: true, data });
+            }
+          } catch (e) {
+            sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) });
+          }
           break;
         }
         case 'RECORDING_STARTED': {

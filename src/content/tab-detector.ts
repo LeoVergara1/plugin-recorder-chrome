@@ -32,6 +32,8 @@ const LEAVE_HINTS = [
 const MIC_ON_HINTS = [
   'desactivar micr',
   'turn off microphone',
+  'mute microphone',
+  'silenciar micr',
   'desativar micro',
   'désactiver le micro',
   'mikrofon aus',
@@ -40,6 +42,7 @@ const MIC_ON_HINTS = [
 ];
 const MIC_OFF_HINTS = [
   'activar micr',
+  'reactivar micr',
   'turn on microphone',
   'unmute',
   'ativar micro',
@@ -74,6 +77,23 @@ function looksLikeInCall(): boolean {
   return labels.some((l) => LEAVE_HINTS.some((h) => l.includes(h)));
 }
 
+// Diagnostico bajo demanda desde el popup (MEET_QUERY): devuelve el estado
+// detectado mas una muestra de etiquetas reales para ampliar variantes.
+function collectStatus(): { inCall: boolean; micOpen: boolean | null; labels: string[] } {
+  const labels = Array.from(document.querySelectorAll('button'))
+    .map((b) => (b.getAttribute('aria-label') || '').trim())
+    .filter((l) => l.length > 0)
+    .slice(0, 40);
+  return { inCall: looksLikeInCall(), micOpen: meetMicOpen(), labels };
+}
+
+chrome.runtime.onMessage.addListener((msg: { type?: string }, _sender, sendResponse) => {
+  if (msg?.type === 'MEET_QUERY') {
+    sendResponse({ ok: true, data: collectStatus() });
+  }
+  return false;
+});
+
 window.setInterval(() => {
   try {
     const inCall = looksLikeInCall();
@@ -89,8 +109,10 @@ window.setInterval(() => {
     } else {
       notInCallStreak = 0;
     }
-    // Estado del micro: solo se avisa cuando cambia y es determinado.
-    const micOpen = looksLikeInCall() ? meetMicOpen() : null;
+    // Estado del micro: se reporta siempre que sea determinado (sin gatear
+    // por inCall: si la deteccion de llamada falla en un idioma, el mute
+    // seguiria funcionando igual).
+    const micOpen = meetMicOpen();
     if (micOpen !== null && micOpen !== lastMicOpen) {
       lastMicOpen = micOpen;
       void chrome.runtime.sendMessage({ type: 'MEET_MIC', muted: !micOpen }).catch(() => undefined);
