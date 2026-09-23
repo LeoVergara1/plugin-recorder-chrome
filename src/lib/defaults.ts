@@ -10,6 +10,7 @@ export async function loadDefaults(): Promise<RecorderDefaults> {
     splitMinutes: d?.splitMinutes ?? DEFAULT_DEFAULTS.splitMinutes,
     micDeviceId: d?.micDeviceId ?? DEFAULT_DEFAULTS.micDeviceId,
     respectMeetMute: d?.respectMeetMute ?? DEFAULT_DEFAULTS.respectMeetMute,
+    noiseSuppression: d?.noiseSuppression ?? DEFAULT_DEFAULTS.noiseSuppression,
   };
 }
 

@@ -12,6 +12,8 @@ export interface RecorderDefaults {
   micDeviceId: string | null;
   /** Si true (Meet), la pista del micro se silencia al mutear en Meet. */
   respectMeetMute: boolean;
+  /** Supresion de ruido / eco del micro en la grabacion. */
+  noiseSuppression: boolean;
 }
 
 export const DEFAULT_DEFAULTS: RecorderDefaults = {
@@ -20,6 +22,7 @@ export const DEFAULT_DEFAULTS: RecorderDefaults = {
   splitMinutes: 30,
   micDeviceId: null,
   respectMeetMute: true,
+  noiseSuppression: true,
 };
 
 export interface RecordingState {
@@ -38,6 +41,8 @@ export interface RecordingState {
   lastError: string | null;
   /** null = sin dato; true/false = microfono realmente en la mezcla. */
   micIncluded: boolean | null;
+  /** Etiqueta del micro capturado (para confirmar que es el correcto). */
+  micLabel: string | null;
   /** null = sin dato (o no es Meet); true = muteado en Meet. */
   meetMuted: boolean | null;
 }
@@ -55,18 +60,18 @@ export type PopupToSW =
 
 // Service Worker -> Offscreen
 export type SWToOffscreen =
-  | { type: 'OFFSCREEN_START'; streamId: string; includeMic: boolean; quality: Quality; tabId: number; partIndex: number; deviceId: string | null; meetMuted: boolean | null }
+  | { type: 'OFFSCREEN_START'; streamId: string; includeMic: boolean; quality: Quality; tabId: number; partIndex: number; deviceId: string | null; meetMuted: boolean | null; noiseSuppression: boolean }
   | { type: 'OFFSCREEN_STOP' }
   | { type: 'OFFSCREEN_PAUSE' }
   | { type: 'OFFSCREEN_RESUME' }
   | { type: 'OFFSCREEN_SPLIT' }
   | { type: 'OFFSCREEN_MEET_MIC'; muted: boolean }
-  | { type: 'OFFSCREEN_TEST_START'; deviceId: string | null }
+  | { type: 'OFFSCREEN_TEST_START'; deviceId: string | null; noiseSuppression: boolean }
   | { type: 'OFFSCREEN_TEST_STOP' };
 
 // Offscreen -> Service Worker
 export type OffscreenToSW =
-  | { type: 'RECORDING_STARTED'; micIncluded: boolean }
+  | { type: 'RECORDING_STARTED'; micIncluded: boolean; micLabel: string | null }
   | { type: 'RECORDING_STOPPED'; filename: string }
   | { type: 'RECORDING_SPLIT'; filename: string; part: number }
   | { type: 'RECORDING_ERROR'; message: string }

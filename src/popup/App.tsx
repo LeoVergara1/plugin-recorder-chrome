@@ -212,6 +212,11 @@ export default function App() {
           ) : (
             <>
               <span className="mic-ok">Mic en mezcla</span>
+              {state.micLabel && (
+                <span className="mic-dim" title={state.micLabel}>
+                  {state.micLabel.length > 32 ? `${state.micLabel.slice(0, 32)}…` : state.micLabel}
+                </span>
+              )}
               {recLevel ? (
                 <>
                   <Meter value={recLevel.level} />

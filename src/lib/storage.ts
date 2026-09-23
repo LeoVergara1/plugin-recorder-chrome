@@ -14,6 +14,7 @@ export const DEFAULT_STATE: RecordingState = {
   partIndex: 1,
   lastError: null,
   micIncluded: null,
+  micLabel: null,
   meetMuted: null,
 };
 

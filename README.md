@@ -83,4 +83,13 @@ Por defecto la extension **respeta el mute de Meet**: si te muteas en la llamada
 tu micro deja de entrar en la grabacion (los demas se siguen escuchando) y se
 reanuda al desmutear. El popup lo indica. Puedes desactivarlo en Opciones.
 Solo aplica a Google Meet; en otras pestanas el micro siempre queda activo.
+
+## Ruido de fondo
+
+- La extension ya aplica supresión de ruido y eco al micro (Opciones, activado
+  por defecto). Si aun hay mucho ruido: usa auriculares (con altavoces el micro
+  capta la sala) y acerca el micro.
+- El popup muestra **qué micrófono está en la mezcla**. Si es el equivocado
+  (p. ej. el del monitor en vez de tus audífonos), cámbialo en
+  **Opciones → Detectar micrófonos**.
 - El timer descuenta el tiempo en pausa.

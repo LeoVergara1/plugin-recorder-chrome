@@ -230,6 +230,16 @@ solo-pestaña **en silencio**: el popup se cerraba y nadie se enteraba.
 *   Selector de dispositivo en opciones (para cuando Meet usa otro micro que el del sistema).
 *   Guía de diagnóstico en `README` (incl. permiso de mic en macOS).
 
+## Ruido de fondo + micro visible (2026-09-23)
+
+Reporte: se graba mucho ruido ambiente. Mejoras:
+*   Supresión de ruido/eco/auto-ganancia explícita en la captura del micro
+    (Opciones, activada por defecto; se puede desactivar para audio crudo).
+*   El popup muestra la etiqueta del micro realmente en la mezcla, para detectar
+    a simple vista si está usando el dispositivo equivocado (causa típica con
+    Bluetooth/USB). El selector ya existía en Opciones → Detectar micrófonos.
+*   Nota: con altavoces el micro siempre captará la sala; se recomiendan auriculares.
+
 ## Fix corte a los ~30s + “message channel closed” (2026-09-23)
 
 Síntoma: la grabación se detenía sola a los pocos segundos y quedaba

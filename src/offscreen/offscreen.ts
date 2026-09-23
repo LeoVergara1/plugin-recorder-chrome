@@ -51,8 +51,14 @@ function notify(msg: Record<string, unknown>): void {
   }
 }
 
-function micConstraints(deviceId: string | null): MediaStreamConstraints {
-  return deviceId ? { audio: { deviceId: { exact: deviceId } } } : { audio: true };
+function micConstraints(deviceId: string | null, noiseSuppression: boolean): MediaStreamConstraints {
+  const audio: MediaTrackConstraints = {
+    echoCancellation: noiseSuppression,
+    noiseSuppression,
+    autoGainControl: noiseSuppression,
+  };
+  if (deviceId) audio.deviceId = { exact: deviceId };
+  return { audio };
 }
 
 function attachMeter(stream: MediaStream, context: 'rec' | 'test'): void {
@@ -232,6 +238,7 @@ async function start(
   startPart: number,
   deviceId: string | null,
   initialMeetMuted: boolean | null,
+  noiseSuppression: boolean,
 ): Promise<void> {
   if (recording) return;
   try {
@@ -245,7 +252,7 @@ async function start(
     let micStream: MediaStream | null = null;
     if (includeMic) {
       try {
-        micStream = await navigator.mediaDevices.getUserMedia(micConstraints(deviceId));
+        micStream = await navigator.mediaDevices.getUserMedia(micConstraints(deviceId, noiseSuppression));
         liveStreams.push(micStream);
       } catch {
         // Sin microfono: seguimos solo con el audio de la pestana, pero
@@ -265,7 +272,8 @@ async function start(
 
     startRecorder();
     recording = true;
-    notify({ type: 'RECORDING_STARTED', micIncluded: micStream !== null });
+    const micTrack = micStream?.getAudioTracks()[0];
+    notify({ type: 'RECORDING_STARTED', micIncluded: micStream !== null, micLabel: micTrack?.label ?? null });
   } catch (e) {
     cleanup();
     notify({
@@ -323,10 +331,10 @@ function split(): void {
 
 // --- Modo prueba de microfono (sin grabar) ---
 
-async function testMicStart(deviceId: string | null): Promise<void> {
+async function testMicStart(deviceId: string | null, noiseSuppression: boolean): Promise<void> {
   testMicStop();
   try {
-    testStream = await navigator.mediaDevices.getUserMedia(micConstraints(deviceId));
+    testStream = await navigator.mediaDevices.getUserMedia(micConstraints(deviceId, noiseSuppression));
     attachMeter(testStream, 'test');
     // Auto-corte por seguridad: la prueba no debe quedar abierta.
     testTimeout = window.setTimeout(() => testMicStop(), 30_000);
@@ -357,7 +365,7 @@ function testMicStop(): void {
 chrome.runtime.onMessage.addListener((msg: SWToOffscreen) => {
   switch (msg.type) {
     case 'OFFSCREEN_START':
-      void start(msg.streamId, msg.includeMic, msg.quality, msg.partIndex, msg.deviceId, msg.meetMuted);
+      void start(msg.streamId, msg.includeMic, msg.quality, msg.partIndex, msg.deviceId, msg.meetMuted, msg.noiseSuppression);
       break;
     case 'OFFSCREEN_STOP':
       testMicStop();
@@ -376,7 +384,7 @@ chrome.runtime.onMessage.addListener((msg: SWToOffscreen) => {
       setMeetMuted(msg.muted);
       break;
     case 'OFFSCREEN_TEST_START':
-      void testMicStart(msg.deviceId);
+      void testMicStart(msg.deviceId, msg.noiseSuppression);
       break;
     case 'OFFSCREEN_TEST_STOP':
       testMicStop();

@@ -77,6 +77,15 @@ function Options() {
       </label>
 
       <label style={row}>
+        <input
+          type="checkbox"
+          checked={d.noiseSuppression}
+          onChange={(e) => persist({ ...d, noiseSuppression: e.target.checked })}
+        />
+        Supresión de ruido y eco del micro (recomendado; usa auriculares si hay acople)
+      </label>
+
+      <label style={row}>
         Calidad por defecto
         <select value={d.quality} onChange={(e) => persist({ ...d, quality: e.target.value as Quality })}>
           <option value="720p">720p (recomendado)</option>

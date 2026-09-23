@@ -77,6 +77,7 @@ async function handleStart(includeMic: boolean, quality: Quality): Promise<{ ok:
     partIndex: 1,
     lastError: null,
     micIncluded: null,
+    micLabel: null,
     // El content script de Meet ya pudo reportar el mute actual.
     meetMuted: (await loadState()).meetMuted === true,
   });
@@ -96,6 +97,7 @@ async function handleStart(includeMic: boolean, quality: Quality): Promise<{ ok:
     partIndex: 1,
     deviceId: defaults.micDeviceId,
     meetMuted: (await loadState()).meetMuted === true,
+    noiseSuppression: defaults.noiseSuppression,
   });
   return { ok: true };
 }
@@ -188,7 +190,7 @@ chrome.runtime.onMessage.addListener(
         case 'TEST_MIC_START': {
           await ensureOffscreen();
           const d = await loadDefaults();
-          await forwardToOffscreen({ type: 'OFFSCREEN_TEST_START', deviceId: d.micDeviceId });
+          await forwardToOffscreen({ type: 'OFFSCREEN_TEST_START', deviceId: d.micDeviceId, noiseSuppression: d.noiseSuppression });
           sendResponse({ ok: true });
           break;
         }
@@ -199,7 +201,7 @@ chrome.runtime.onMessage.addListener(
         }
         case 'RECORDING_STARTED': {
           const s = await loadState();
-          await saveState({ ...s, isRecording: true, micIncluded: msg.micIncluded });
+          await saveState({ ...s, isRecording: true, micIncluded: msg.micIncluded, micLabel: msg.micLabel ?? null });
           setBadge(true);
           break;
         }
