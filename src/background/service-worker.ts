@@ -142,6 +142,18 @@ async function handleStop(): Promise<void> {
   await chrome.alarms.clear(SPLIT_ALARM);
 }
 
+// Mensajes que reciben respuesta (los demas son notificaciones sin respuesta).
+const RESPONDS = new Set([
+  'GET_STATE',
+  'START',
+  'STOP',
+  'PAUSE',
+  'RESUME',
+  'CLEAR_ERROR',
+  'TEST_MIC_START',
+  'TEST_MIC_STOP',
+]);
+
 chrome.runtime.onMessage.addListener(
   (msg: PopupToSW | OffscreenToSW | ContentToSW, _sender, sendResponse) => {
     (async () => {
@@ -229,8 +241,21 @@ chrome.runtime.onMessage.addListener(
           break;
         }
       }
-    })();
-    return true; // respuesta asincrona
+    })().catch((e) => {
+      // Si el remitente esperaba respuesta, no dejarlo colgado.
+      try {
+        if (RESPONDS.has(msg.type)) {
+          sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) });
+        }
+      } catch {
+        // noop
+      }
+    });
+    // Solo reclamar respuesta asincrona cuando realmente se responde.
+    // Devolver true para notificaciones (RECORDING_*, MEET_*, MIC_LEVEL)
+    // sin responder cierra el canal con error y rompe los `await sendMessage`,
+    // lo que llegaba a detener la grabacion por error.
+    return RESPONDS.has(msg.type);
   },
 );
 

@@ -40,6 +40,17 @@ let meterTimer: number | null = null;
 let testStream: MediaStream | null = null;
 let testTimeout: number | null = null;
 
+// Informar al SW nunca debe lanzar: un `await sendMessage` dirigido a una
+// notificacion (sin respuesta) rechaza con "message channel closed" y, dentro
+// de un try/catch de grabacion, eso detiene la sesion por error.
+function notify(msg: Record<string, unknown>): void {
+  try {
+    (chrome.runtime.sendMessage(msg) as unknown as Promise<void>)?.catch(() => undefined);
+  } catch {
+    // noop
+  }
+}
+
 function micConstraints(deviceId: string | null): MediaStreamConstraints {
   return deviceId ? { audio: { deviceId: { exact: deviceId } } } : { audio: true };
 }
@@ -48,7 +59,7 @@ function attachMeter(stream: MediaStream, context: 'rec' | 'test'): void {
   detachMeter();
   const track = stream.getAudioTracks()[0];
   if (!track) {
-    void chrome.runtime.sendMessage({
+    notify({
       type: 'MIC_LEVEL',
       level: 0,
       hasTrack: false,
@@ -86,7 +97,7 @@ function attachMeter(stream: MediaStream, context: 'rec' | 'test'): void {
   meterTimer = window.setInterval(() => {
     if (!meter || !meterContext) return;
     const info = meter.trackInfo();
-    void chrome.runtime.sendMessage({
+    notify({
       type: 'MIC_LEVEL',
       level: info.hasTrack && !info.muted ? meter.level() : 0,
       hasTrack: info.hasTrack,
@@ -200,12 +211,12 @@ async function onRecorderStop(): Promise<void> {
       chunks = [];
       partIndex += 1;
       startRecorder();
-      await chrome.runtime.sendMessage({ type: 'RECORDING_SPLIT', filename, part: partIndex });
+      notify({ type: 'RECORDING_SPLIT', filename, part: partIndex });
       return;
     }
-    await chrome.runtime.sendMessage({ type: 'RECORDING_STOPPED', filename });
+    notify({ type: 'RECORDING_STOPPED', filename });
   } catch (e) {
-    await chrome.runtime.sendMessage({
+    notify({
       type: 'RECORDING_ERROR',
       message: e instanceof Error ? e.message : String(e),
     });
@@ -254,10 +265,10 @@ async function start(
 
     startRecorder();
     recording = true;
-    await chrome.runtime.sendMessage({ type: 'RECORDING_STARTED', micIncluded: micStream !== null });
+    notify({ type: 'RECORDING_STARTED', micIncluded: micStream !== null });
   } catch (e) {
     cleanup();
-    await chrome.runtime.sendMessage({
+    notify({
       type: 'RECORDING_ERROR',
       message: e instanceof Error ? e.message : String(e),
     });
@@ -320,7 +331,7 @@ async function testMicStart(deviceId: string | null): Promise<void> {
     // Auto-corte por seguridad: la prueba no debe quedar abierta.
     testTimeout = window.setTimeout(() => testMicStop(), 30_000);
   } catch (e) {
-    void chrome.runtime.sendMessage({
+    notify({
       type: 'MIC_LEVEL',
       level: 0,
       hasTrack: false,

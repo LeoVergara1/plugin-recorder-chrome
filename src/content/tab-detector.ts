@@ -60,6 +60,12 @@ function meetMicOpen(): boolean | null {
 }
 
 let lastMicOpen: boolean | null = null;
+// Racha de chequeos seguidos sin UI de llamada. El DOM de Meet se reconstruye
+// al entrar/salir (transiciones de segundos), asi que solo se declara el fin
+// tras varios chequeos seguidos: un solo negativo era un falso positivo que
+// detenia la grabacion a los pocos segundos de empezarla.
+let notInCallStreak = 0;
+const ENDED_AFTER_STREAK = 3;
 
 function looksLikeInCall(): boolean {
   const labels = Array.from(document.querySelectorAll('button')).map((b) =>
@@ -68,19 +74,20 @@ function looksLikeInCall(): boolean {
   return labels.some((l) => LEAVE_HINTS.some((h) => l.includes(h)));
 }
 
-// Salir a la home de Meet (pathname "/") tras estar en llamada tambien
-// cuenta como fin de llamada.
-function looksLikeHome(): boolean {
-  return window.location.pathname === '/' || window.location.pathname === '';
-}
-
 window.setInterval(() => {
   try {
     const inCall = looksLikeInCall();
-    if (inCall) wasInCall = true;
-    if (wasInCall && !inCall && !endedSent && (looksLikeHome() || document.querySelectorAll('button').length > 0)) {
-      endedSent = true;
-      void chrome.runtime.sendMessage({ type: 'MEET_ENDED' }).catch(() => undefined);
+    if (inCall) {
+      wasInCall = true;
+      notInCallStreak = 0;
+    } else if (wasInCall && !endedSent && document.querySelectorAll('button').length > 0) {
+      notInCallStreak += 1;
+      if (notInCallStreak >= ENDED_AFTER_STREAK) {
+        endedSent = true;
+        void chrome.runtime.sendMessage({ type: 'MEET_ENDED' }).catch(() => undefined);
+      }
+    } else {
+      notInCallStreak = 0;
     }
     // Estado del micro: solo se avisa cuando cambia y es determinado.
     const micOpen = looksLikeInCall() ? meetMicOpen() : null;

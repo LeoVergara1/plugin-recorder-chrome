@@ -230,6 +230,22 @@ solo-pestaña **en silencio**: el popup se cerraba y nadie se enteraba.
 *   Selector de dispositivo en opciones (para cuando Meet usa otro micro que el del sistema).
 *   Guía de diagnóstico en `README` (incl. permiso de mic en macOS).
 
+## Fix corte a los ~30s + “message channel closed” (2026-09-23)
+
+Síntoma: la grabación se detenía sola a los pocos segundos y quedaba
+«Último error: A listener indicated an asynchronous response by returning true,
+but the message channel closed before a response was received».
+Dos bugs encadenados:
+1. El SW devolvía `true` (respuesta asíncrona) para **todos** los mensajes, también
+   para notificaciones a las que nunca responde (`RECORDING_*`, `MEET_*`, `MIC_LEVEL`).
+   Eso hacía rechazar los `await sendMessage` y, dentro de un try/catch de grabación,
+   detenía la sesión. El error enmascaraba la causa real.
+   Fix: el SW solo reclama respuesta para mensajes con respuesta (`RESPONDS`) y el
+   offscreen informa con `notify()` que nunca lanza.
+2. `MEET_ENDED` se disparaba con un solo chequeo negativo del DOM. Como el DOM de Meet
+   se reconstruye al entrar a la llamada, había un falso positivo que auto-detenía
+   la grabación. Fix: racha de 3 chequeos seguidos (~6s) antes de declarar el fin.
+
 ## Respetar mute de Meet (2026-09-23)
 
 Antes, el micro se capturaba a nivel sistema y quedaba en la grabación aunque
