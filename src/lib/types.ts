@@ -10,6 +10,8 @@ export interface RecorderDefaults {
   splitMinutes: number;
   /** deviceId de microfono elegido (null = dispositivo del sistema). */
   micDeviceId: string | null;
+  /** Si true (Meet), la pista del micro se silencia al mutear en Meet. */
+  respectMeetMute: boolean;
 }
 
 export const DEFAULT_DEFAULTS: RecorderDefaults = {
@@ -17,6 +19,7 @@ export const DEFAULT_DEFAULTS: RecorderDefaults = {
   quality: '720p',
   splitMinutes: 30,
   micDeviceId: null,
+  respectMeetMute: true,
 };
 
 export interface RecordingState {
@@ -35,6 +38,8 @@ export interface RecordingState {
   lastError: string | null;
   /** null = sin dato; true/false = microfono realmente en la mezcla. */
   micIncluded: boolean | null;
+  /** null = sin dato (o no es Meet); true = muteado en Meet. */
+  meetMuted: boolean | null;
 }
 
 // Popup -> Service Worker
@@ -50,11 +55,12 @@ export type PopupToSW =
 
 // Service Worker -> Offscreen
 export type SWToOffscreen =
-  | { type: 'OFFSCREEN_START'; streamId: string; includeMic: boolean; quality: Quality; tabId: number; partIndex: number; deviceId: string | null }
+  | { type: 'OFFSCREEN_START'; streamId: string; includeMic: boolean; quality: Quality; tabId: number; partIndex: number; deviceId: string | null; meetMuted: boolean | null }
   | { type: 'OFFSCREEN_STOP' }
   | { type: 'OFFSCREEN_PAUSE' }
   | { type: 'OFFSCREEN_RESUME' }
   | { type: 'OFFSCREEN_SPLIT' }
+  | { type: 'OFFSCREEN_MEET_MIC'; muted: boolean }
   | { type: 'OFFSCREEN_TEST_START'; deviceId: string | null }
   | { type: 'OFFSCREEN_TEST_STOP' };
 
@@ -67,7 +73,7 @@ export type OffscreenToSW =
   | { type: 'MIC_LEVEL'; level: number; hasTrack: boolean; trackMuted: boolean; trackState: string; context: 'rec' | 'test' };
 
 // Content (Meet) -> Service Worker
-export type ContentToSW = { type: 'MEET_ENDED' };
+export type ContentToSW = { type: 'MEET_ENDED' } | { type: 'MEET_MIC'; muted: boolean };
 
 export const STORAGE_KEY = 'recorder:state';
 export const DEFAULTS_KEY = 'recorder:defaults';

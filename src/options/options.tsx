@@ -68,6 +68,15 @@ function Options() {
       </label>
 
       <label style={row}>
+        <input
+          type="checkbox"
+          checked={d.respectMeetMute}
+          onChange={(e) => persist({ ...d, respectMeetMute: e.target.checked })}
+        />
+        Respetar el mute de Meet (no grabar mi micro mientras este muteado en Meet)
+      </label>
+
+      <label style={row}>
         Calidad por defecto
         <select value={d.quality} onChange={(e) => persist({ ...d, quality: e.target.value as Quality })}>
           <option value="720p">720p (recomendado)</option>

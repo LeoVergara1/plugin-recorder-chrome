@@ -26,6 +26,41 @@ const LEAVE_HINTS = [
   'encerrar',
 ];
 
+// Boton de microfono de Meet: el aria-label cambia segun el estado.
+// Se chequean las etiquetas de "micro abierto" PRIMERO porque
+// "desactivar micrófono" contiene como subcadena "activar micr".
+const MIC_ON_HINTS = [
+  'desactivar micr',
+  'turn off microphone',
+  'desativar micro',
+  'désactiver le micro',
+  'mikrofon aus',
+  'mikrofon deaktivieren',
+  'disattiva il micro',
+];
+const MIC_OFF_HINTS = [
+  'activar micr',
+  'turn on microphone',
+  'unmute',
+  'ativar micro',
+  'activer le micro',
+  'mikrofon einschalten',
+  'mikrofon aktivieren',
+  'attiva il micro',
+];
+
+// true = micro abierto en Meet, false = muteado, null = indeterminado.
+function meetMicOpen(): boolean | null {
+  const labels = Array.from(document.querySelectorAll('button')).map((b) =>
+    (b.getAttribute('aria-label') || '').toLowerCase(),
+  );
+  if (labels.some((l) => MIC_ON_HINTS.some((h) => l.includes(h)))) return true;
+  if (labels.some((l) => MIC_OFF_HINTS.some((h) => l.includes(h)))) return false;
+  return null;
+}
+
+let lastMicOpen: boolean | null = null;
+
 function looksLikeInCall(): boolean {
   const labels = Array.from(document.querySelectorAll('button')).map((b) =>
     (b.getAttribute('aria-label') || '').toLowerCase(),
@@ -47,7 +82,13 @@ window.setInterval(() => {
       endedSent = true;
       void chrome.runtime.sendMessage({ type: 'MEET_ENDED' }).catch(() => undefined);
     }
+    // Estado del micro: solo se avisa cuando cambia y es determinado.
+    const micOpen = looksLikeInCall() ? meetMicOpen() : null;
+    if (micOpen !== null && micOpen !== lastMicOpen) {
+      lastMicOpen = micOpen;
+      void chrome.runtime.sendMessage({ type: 'MEET_MIC', muted: !micOpen }).catch(() => undefined);
+    }
   } catch {
     // noop: nunca romper la pagina de Meet por este detector
   }
-}, 3000);
+}, 2000);

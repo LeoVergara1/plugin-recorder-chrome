@@ -77,6 +77,8 @@ async function handleStart(includeMic: boolean, quality: Quality): Promise<{ ok:
     partIndex: 1,
     lastError: null,
     micIncluded: null,
+    // El content script de Meet ya pudo reportar el mute actual.
+    meetMuted: (await loadState()).meetMuted === true,
   });
   setBadge(true);
   await chrome.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 0.5 });
@@ -93,6 +95,7 @@ async function handleStart(includeMic: boolean, quality: Quality): Promise<{ ok:
     tabId: tab.id,
     partIndex: 1,
     deviceId: defaults.micDeviceId,
+    meetMuted: (await loadState()).meetMuted === true,
   });
   return { ok: true };
 }
@@ -210,6 +213,15 @@ chrome.runtime.onMessage.addListener(
         case 'MEET_ENDED': {
           const s = await loadState();
           if (s.isRecording) await handleStop();
+          break;
+        }
+        case 'MEET_MIC': {
+          const s = await loadState();
+          await saveState({ ...s, meetMuted: msg.muted });
+          const d = await loadDefaults();
+          if (s.isRecording && d.respectMeetMute) {
+            await forwardToOffscreen({ type: 'OFFSCREEN_MEET_MIC', muted: msg.muted });
+          }
           break;
         }
         case 'MIC_LEVEL': {

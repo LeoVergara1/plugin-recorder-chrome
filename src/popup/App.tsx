@@ -201,6 +201,10 @@ export default function App() {
           : 'Graba la pestana activa. Queda en local, sin bots ni participantes extra.'}
       </p>
 
+      {state.isRecording && state.meetMuted === true && state.micIncluded !== false && (
+        <p className="notice">Silenciado en Meet: tu micro no entra en la grabacion. Se reanuda al activar el micro en Meet.</p>
+      )}
+
       {state.isRecording && (
         <div className="micline">
           {state.micIncluded === false ? (

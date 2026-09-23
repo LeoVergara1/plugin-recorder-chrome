@@ -230,6 +230,14 @@ solo-pestaña **en silencio**: el popup se cerraba y nadie se enteraba.
 *   Selector de dispositivo en opciones (para cuando Meet usa otro micro que el del sistema).
 *   Guía de diagnóstico en `README` (incl. permiso de mic en macOS).
 
+## Respetar mute de Meet (2026-09-23)
+
+Antes, el micro se capturaba a nivel sistema y quedaba en la grabación aunque
+estuvieras muteado en Meet. Ahora el content script detecta el estado del
+botón de micro (multi-idioma) y la pista del micro se habilita/deshabilita en
+la mezcla (`track.enabled`), sin cortar la grabación. Opcional desde Opciones
+(activado por defecto); el popup avisa cuando el mute de Meet pausa tu micro.
+
 ## 9. Siguiente paso inmediato
 
 Probar en Chrome (`chrome://extensions` → Load unpacked → `dist/`): grabar una pestaña

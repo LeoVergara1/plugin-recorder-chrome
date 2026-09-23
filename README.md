@@ -76,4 +76,11 @@ la extension. Si el archivo solo trae a los demas:
    Chrome debe estar permitido.
 4. Durante la grabacion el popup muestra **«Mic en mezcla»** con nivel en vivo,
    o un aviso si el mic no quedo incluido.
+
+## Mute de Meet
+
+Por defecto la extension **respeta el mute de Meet**: si te muteas en la llamada,
+tu micro deja de entrar en la grabacion (los demas se siguen escuchando) y se
+reanuda al desmutear. El popup lo indica. Puedes desactivarlo en Opciones.
+Solo aplica a Google Meet; en otras pestanas el micro siempre queda activo.
 - El timer descuenta el tiempo en pausa.

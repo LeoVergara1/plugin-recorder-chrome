@@ -22,6 +22,9 @@ let outputStream: MediaStream | null = null;
 let recording = false;
 let partIndex = 1;
 let splitting = false;
+// Pistas del micro de la sesion: se habilitan/deshabilitan segun el mute de Meet.
+let micTracks: MediaStreamTrack[] = [];
+let meetMuted = false;
 
 // --- Medidor de nivel del microfono ---
 
@@ -144,6 +147,8 @@ function cleanup(): void {
   splitting = false;
   mixStop?.();
   mixStop = null;
+  micTracks = [];
+  meetMuted = false;
   stopTracks(liveStreams);
   liveStreams = [];
   detachMeter();
@@ -215,6 +220,7 @@ async function start(
   quality: Quality,
   startPart: number,
   deviceId: string | null,
+  initialMeetMuted: boolean | null,
 ): Promise<void> {
   if (recording) return;
   try {
@@ -241,6 +247,9 @@ async function start(
     mixStop = mixed.stop;
     outputStream = combineVideoWithMixedAudio(tabStream, mixed.mixedStream);
 
+    micTracks = micStream ? micStream.getAudioTracks() : [];
+    setMeetMuted(initialMeetMuted === true);
+
     if (micStream) attachMeter(micStream, 'rec');
 
     startRecorder();
@@ -253,6 +262,13 @@ async function start(
       message: e instanceof Error ? e.message : String(e),
     });
   }
+}
+
+// Sigue al mute de Meet: con el micro muteado en Meet, la pista se
+// deshabilita (silencio en la mezcla, sin cortar la grabacion).
+function setMeetMuted(muted: boolean): void {
+  meetMuted = muted;
+  for (const t of micTracks) t.enabled = !muted;
 }
 
 async function stop(): Promise<void> {
@@ -330,7 +346,7 @@ function testMicStop(): void {
 chrome.runtime.onMessage.addListener((msg: SWToOffscreen) => {
   switch (msg.type) {
     case 'OFFSCREEN_START':
-      void start(msg.streamId, msg.includeMic, msg.quality, msg.partIndex, msg.deviceId);
+      void start(msg.streamId, msg.includeMic, msg.quality, msg.partIndex, msg.deviceId, msg.meetMuted);
       break;
     case 'OFFSCREEN_STOP':
       testMicStop();
@@ -344,6 +360,9 @@ chrome.runtime.onMessage.addListener((msg: SWToOffscreen) => {
       break;
     case 'OFFSCREEN_SPLIT':
       split();
+      break;
+    case 'OFFSCREEN_MEET_MIC':
+      setMeetMuted(msg.muted);
       break;
     case 'OFFSCREEN_TEST_START':
       void testMicStart(msg.deviceId);
