@@ -76,6 +76,7 @@ async function handleStart(includeMic: boolean, quality: Quality): Promise<{ ok:
     quality,
     partIndex: 1,
     lastError: null,
+    micIncluded: null,
   });
   setBadge(true);
   await chrome.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 0.5 });
@@ -91,6 +92,7 @@ async function handleStart(includeMic: boolean, quality: Quality): Promise<{ ok:
     quality,
     tabId: tab.id,
     partIndex: 1,
+    deviceId: defaults.micDeviceId,
   });
   return { ok: true };
 }
@@ -168,9 +170,21 @@ chrome.runtime.onMessage.addListener(
           sendResponse({ ok: true });
           break;
         }
+        case 'TEST_MIC_START': {
+          await ensureOffscreen();
+          const d = await loadDefaults();
+          await forwardToOffscreen({ type: 'OFFSCREEN_TEST_START', deviceId: d.micDeviceId });
+          sendResponse({ ok: true });
+          break;
+        }
+        case 'TEST_MIC_STOP': {
+          await forwardToOffscreen({ type: 'OFFSCREEN_TEST_STOP' });
+          sendResponse({ ok: true });
+          break;
+        }
         case 'RECORDING_STARTED': {
           const s = await loadState();
-          await saveState({ ...s, isRecording: true });
+          await saveState({ ...s, isRecording: true, micIncluded: msg.micIncluded });
           setBadge(true);
           break;
         }
@@ -196,6 +210,10 @@ chrome.runtime.onMessage.addListener(
         case 'MEET_ENDED': {
           const s = await loadState();
           if (s.isRecording) await handleStop();
+          break;
+        }
+        case 'MIC_LEVEL': {
+          // Solo le interesa al popup abierto; el SW lo ignora.
           break;
         }
       }

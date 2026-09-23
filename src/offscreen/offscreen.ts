@@ -4,10 +4,10 @@
 // ocurre aqui: getUserMedia(tab) + getUserMedia(mic) -> mix -> grabar.
 // Al detener, descarga el .webm localmente (requisito: solo local).
 //
-// Fase 2: pause/resume (MediaRecorder.pause/resume) y auto-split cada
-// 30 min (el SW envia OFFSCREEN_SPLIT): se cierra la parte actual,
-// se descarga `...-pN.webm` y se sigue grabando en `...-pN+1.webm`
-// con los mismos streams, sin perder la sesion.
+// Fase 2: pause/resume y auto-split.
+// Fix mic: medidor de nivel en vivo (MIC_LEVEL) + modo de prueba
+// (OFFSCREEN_TEST_*) + seleccion de dispositivo, para que un microfono
+// silencioso/equivocado nunca pase desapercibido.
 
 import type { Quality, SWToOffscreen } from '../lib/types';
 import { appendChunk, clearChunks } from '../lib/storage';
@@ -22,6 +22,89 @@ let outputStream: MediaStream | null = null;
 let recording = false;
 let partIndex = 1;
 let splitting = false;
+
+// --- Medidor de nivel del microfono ---
+
+interface Meter {
+  level: () => number;
+  trackInfo: () => { hasTrack: boolean; muted: boolean; state: string };
+  dispose: () => void;
+}
+
+let meter: Meter | null = null;
+let meterContext: 'rec' | 'test' | null = null;
+let meterTimer: number | null = null;
+let testStream: MediaStream | null = null;
+let testTimeout: number | null = null;
+
+function micConstraints(deviceId: string | null): MediaStreamConstraints {
+  return deviceId ? { audio: { deviceId: { exact: deviceId } } } : { audio: true };
+}
+
+function attachMeter(stream: MediaStream, context: 'rec' | 'test'): void {
+  detachMeter();
+  const track = stream.getAudioTracks()[0];
+  if (!track) {
+    void chrome.runtime.sendMessage({
+      type: 'MIC_LEVEL',
+      level: 0,
+      hasTrack: false,
+      trackMuted: false,
+      trackState: 'missing',
+      context,
+    });
+    return;
+  }
+  const ctx = new AudioContext();
+  const src = ctx.createMediaStreamSource(stream);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 1024;
+  src.connect(analyser); // sin conectar a destination: no suena, solo mide
+  void ctx.resume().catch(() => undefined);
+  const buf = new Float32Array(analyser.fftSize);
+  meter = {
+    level: () => {
+      analyser.getFloatTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+      return Math.min(1, Math.sqrt(sum / buf.length) * 3);
+    },
+    trackInfo: () => ({ hasTrack: track.readyState === 'live', muted: track.muted, state: track.readyState }),
+    dispose: () => {
+      try {
+        src.disconnect();
+      } catch {
+        // noop
+      }
+      void ctx.close().catch(() => undefined);
+    },
+  };
+  meterContext = context;
+  meterTimer = window.setInterval(() => {
+    if (!meter || !meterContext) return;
+    const info = meter.trackInfo();
+    void chrome.runtime.sendMessage({
+      type: 'MIC_LEVEL',
+      level: info.hasTrack && !info.muted ? meter.level() : 0,
+      hasTrack: info.hasTrack,
+      trackMuted: info.muted,
+      trackState: info.state,
+      context: meterContext,
+    });
+  }, 500);
+}
+
+function detachMeter(): void {
+  if (meterTimer !== null) {
+    window.clearInterval(meterTimer);
+    meterTimer = null;
+  }
+  meter?.dispose();
+  meter = null;
+  meterContext = null;
+}
+
+// --- Captura ---
 
 async function getTabStream(streamId: string, quality: Quality): Promise<MediaStream> {
   const q = qualityConstraints(quality);
@@ -40,6 +123,18 @@ async function getTabStream(streamId: string, quality: Quality): Promise<MediaSt
   return navigator.mediaDevices.getUserMedia(constraints);
 }
 
+function stopTracks(streams: MediaStream[]): void {
+  for (const s of streams) {
+    for (const t of s.getTracks()) {
+      try {
+        t.stop();
+      } catch {
+        // noop
+      }
+    }
+  }
+}
+
 function cleanup(): void {
   recording = false;
   recorder = null;
@@ -49,16 +144,9 @@ function cleanup(): void {
   splitting = false;
   mixStop?.();
   mixStop = null;
-  for (const s of liveStreams) {
-    for (const t of s.getTracks()) {
-      try {
-        t.stop();
-      } catch {
-        // noop
-      }
-    }
-  }
+  stopTracks(liveStreams);
   liveStreams = [];
+  detachMeter();
 }
 
 function downloadBlob(blob: Blob, filename: string): void {
@@ -121,7 +209,13 @@ async function onRecorderStop(): Promise<void> {
   }
 }
 
-async function start(streamId: string, includeMic: boolean, quality: Quality, startPart: number): Promise<void> {
+async function start(
+  streamId: string,
+  includeMic: boolean,
+  quality: Quality,
+  startPart: number,
+  deviceId: string | null,
+): Promise<void> {
   if (recording) return;
   try {
     await clearChunks();
@@ -134,10 +228,11 @@ async function start(streamId: string, includeMic: boolean, quality: Quality, st
     let micStream: MediaStream | null = null;
     if (includeMic) {
       try {
-        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        micStream = await navigator.mediaDevices.getUserMedia(micConstraints(deviceId));
         liveStreams.push(micStream);
       } catch {
-        // Sin permiso de microfono: seguimos solo con el audio de la pestana.
+        // Sin microfono: seguimos solo con el audio de la pestana, pero
+        // avisamos (micIncluded=false) para que el popup lo muestre.
         micStream = null;
       }
     }
@@ -145,6 +240,8 @@ async function start(streamId: string, includeMic: boolean, quality: Quality, st
     const mixed = mixTabAndMic(tabStream, micStream);
     mixStop = mixed.stop;
     outputStream = combineVideoWithMixedAudio(tabStream, mixed.mixedStream);
+
+    if (micStream) attachMeter(micStream, 'rec');
 
     startRecorder();
     recording = true;
@@ -197,12 +294,46 @@ function split(): void {
   }
 }
 
+// --- Modo prueba de microfono (sin grabar) ---
+
+async function testMicStart(deviceId: string | null): Promise<void> {
+  testMicStop();
+  try {
+    testStream = await navigator.mediaDevices.getUserMedia(micConstraints(deviceId));
+    attachMeter(testStream, 'test');
+    // Auto-corte por seguridad: la prueba no debe quedar abierta.
+    testTimeout = window.setTimeout(() => testMicStop(), 30_000);
+  } catch (e) {
+    void chrome.runtime.sendMessage({
+      type: 'MIC_LEVEL',
+      level: 0,
+      hasTrack: false,
+      trackMuted: false,
+      trackState: e instanceof Error ? e.name : 'error',
+      context: 'test',
+    });
+  }
+}
+
+function testMicStop(): void {
+  if (testTimeout !== null) {
+    window.clearTimeout(testTimeout);
+    testTimeout = null;
+  }
+  if (testStream) {
+    stopTracks([testStream]);
+    testStream = null;
+  }
+  if (meterContext === 'test') detachMeter();
+}
+
 chrome.runtime.onMessage.addListener((msg: SWToOffscreen) => {
   switch (msg.type) {
     case 'OFFSCREEN_START':
-      void start(msg.streamId, msg.includeMic, msg.quality, msg.partIndex);
+      void start(msg.streamId, msg.includeMic, msg.quality, msg.partIndex, msg.deviceId);
       break;
     case 'OFFSCREEN_STOP':
+      testMicStop();
       void stop();
       break;
     case 'OFFSCREEN_PAUSE':
@@ -213,6 +344,12 @@ chrome.runtime.onMessage.addListener((msg: SWToOffscreen) => {
       break;
     case 'OFFSCREEN_SPLIT':
       split();
+      break;
+    case 'OFFSCREEN_TEST_START':
+      void testMicStart(msg.deviceId);
+      break;
+    case 'OFFSCREEN_TEST_STOP':
+      testMicStop();
       break;
   }
 });

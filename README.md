@@ -63,4 +63,17 @@ src/
   la extension lo detecta y lo explica antes de intentarlo.
 - Los errores de una sesion (p. ej. microfono desconectado a mitad) quedan guardados
   y se muestran al abrir el popup.
+
+## Si tu voz no queda grabada
+
+El audio de los demas viene de la pestana; tu voz viene del microfono que capture
+la extension. Si el archivo solo trae a los demas:
+
+1. En el popup pulsa **Probar microfono** y habla: la barra debe moverse.
+2. Si no se mueve, abre **Opciones → Detectar micrófonos** y elige el mismo micro
+   que usas en Meet (los Bluetooth/USB suelen ser otro dispositivo distinto al del sistema).
+3. En macOS revisa `Ajustes del Sistema → Privacidad y seguridad → Micrófono`:
+   Chrome debe estar permitido.
+4. Durante la grabacion el popup muestra **«Mic en mezcla»** con nivel en vivo,
+   o un aviso si el mic no quedo incluido.
 - El timer descuenta el tiempo en pausa.

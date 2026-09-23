@@ -4,6 +4,14 @@ import { DEFAULT_STATE } from '../lib/storage';
 import { loadDefaults } from '../lib/defaults';
 import { computeElapsedMs, formatElapsed, humanizeError } from '../lib/utils';
 
+interface MicLevel {
+  level: number;
+  hasTrack: boolean;
+  trackMuted: boolean;
+  trackState: string;
+  context: 'rec' | 'test';
+}
+
 // Pide el permiso de microfono en el popup (gesto del usuario) antes de
 // iniciar, para que el offscreen lo tenga concedido. Devuelve true si OK.
 async function ensureMicPermission(): Promise<boolean> {
@@ -16,12 +24,24 @@ async function ensureMicPermission(): Promise<boolean> {
   }
 }
 
+function Meter({ value }: { value: number }) {
+  const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
+  return (
+    <div className="meter" title={`Nivel de microfono: ${pct}%`}>
+      <div className="meter-fill" style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
 export default function App() {
   const [state, setState] = useState<RecordingState>({ ...DEFAULT_STATE });
   const [now, setNow] = useState<number>(Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [micDenied, setMicDenied] = useState(false);
+  const [micLevel, setMicLevel] = useState<MicLevel | null>(null);
+  const [testing, setTesting] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -30,6 +50,22 @@ export default function App() {
     } catch {
       // SW dormido o popup sin contexto; se reintenta en el siguiente tick.
     }
+  }, []);
+
+  // Niveles de microfono en vivo (los envia el offscreen).
+  useEffect(() => {
+    const listener = (msg: { type?: string }) => {
+      if (msg?.type === 'MIC_LEVEL') setMicLevel(msg as MicLevel);
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    return () => chrome.runtime.onMessage.removeListener(listener);
+  }, []);
+
+  // Al cerrar el popup, cortar una prueba de mic en curso.
+  useEffect(() => {
+    return () => {
+      void chrome.runtime.sendMessage({ type: 'TEST_MIC_STOP' }).catch(() => undefined);
+    };
   }, []);
 
   useEffect(() => {
@@ -66,9 +102,13 @@ export default function App() {
     try {
       let includeMic = state.includeMic;
       if (includeMic && !(await ensureMicPermission())) {
+        // No cerrar: el usuario debe ver que el mic fallo y decidir.
         includeMic = false;
+        setMicDenied(true);
         setState((s) => ({ ...s, includeMic: false }));
-        setNotice('Microfono denegado: se grabara solo el audio de la pestana.');
+        setNotice('Microfono denegado o sin acceso: revisa el permiso del navegador. Puedes grabar sin el o reintentar.');
+        setBusy(false);
+        return;
       }
       const res = await chrome.runtime.sendMessage({
         type: 'START',
@@ -102,6 +142,28 @@ export default function App() {
     }
   }
 
+  async function toggleTest() {
+    if (testing) {
+      setTesting(false);
+      setMicLevel(null);
+      try {
+        await chrome.runtime.sendMessage({ type: 'TEST_MIC_STOP' });
+      } catch {
+        // noop
+      }
+      return;
+    }
+    setTesting(true);
+    setMicLevel(null);
+    setError(null);
+    try {
+      await chrome.runtime.sendMessage({ type: 'TEST_MIC_START' });
+    } catch (e) {
+      setError(humanizeError(e instanceof Error ? e.message : String(e)));
+      setTesting(false);
+    }
+  }
+
   async function dismissLastError() {
     try {
       await chrome.runtime.sendMessage({ type: 'CLEAR_ERROR' });
@@ -115,7 +177,13 @@ export default function App() {
     void chrome.tabs.create({ url: chrome.runtime.getURL('viewer.html') });
   }
 
+  function openOptions() {
+    void chrome.runtime.openOptionsPage();
+  }
+
   const elapsed = formatElapsed(computeElapsedMs(state, now));
+  const recLevel = micLevel?.context === 'rec' ? micLevel : null;
+  const testLevel = micLevel?.context === 'test' ? micLevel : null;
 
   return (
     <div className="wrap">
@@ -133,12 +201,36 @@ export default function App() {
           : 'Graba la pestana activa. Queda en local, sin bots ni participantes extra.'}
       </p>
 
+      {state.isRecording && (
+        <div className="micline">
+          {state.micIncluded === false ? (
+            <span className="mic-bad">Mic NO incluido en esta grabacion (solo audio de pestana).</span>
+          ) : (
+            <>
+              <span className="mic-ok">Mic en mezcla</span>
+              {recLevel ? (
+                <>
+                  <Meter value={recLevel.level} />
+                  {recLevel.trackMuted && <span className="mic-bad">silenciado a nivel sistema</span>}
+                </>
+              ) : (
+                <span className="mic-dim">midiendo… habla para verificar</span>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       <label className="row">
         <input
           type="checkbox"
           checked={state.includeMic}
           disabled={state.isRecording || busy}
-          onChange={(e) => setState((s) => ({ ...s, includeMic: e.target.checked }))}
+          onChange={(e) => {
+            setMicDenied(false);
+            setNotice(null);
+            setState((s) => ({ ...s, includeMic: e.target.checked }));
+          }}
         />
         Incluir mi microfono (por defecto activado)
       </label>
@@ -154,6 +246,19 @@ export default function App() {
           <option value="1080p">1080p</option>
         </select>
       </label>
+
+      {!state.isRecording && (
+        <div className="micline">
+          <button className="btn secondary" disabled={busy} onClick={toggleTest}>
+            {testing ? 'Detener prueba' : 'Probar microfono'}
+          </button>
+          {testing && testLevel && <Meter value={testLevel.level} />}
+          {testing && testLevel && !testLevel.hasTrack && (
+            <span className="mic-bad">sin acceso al mic ({testLevel.trackState})</span>
+          )}
+          {testing && testLevel?.trackMuted && <span className="mic-bad">silenciado a nivel sistema</span>}
+        </div>
+      )}
 
       {state.isRecording ? (
         <div className="btn-row">
@@ -172,7 +277,7 @@ export default function App() {
         </div>
       ) : (
         <button className="btn start" disabled={busy} onClick={handleStart}>
-          {busy ? 'Iniciando…' : 'Grabar esta pestana'}
+          {busy ? 'Iniciando…' : micDenied ? 'Grabar sin microfono' : 'Grabar esta pestana'}
         </button>
       )}
 
@@ -190,6 +295,9 @@ export default function App() {
       <footer className="foot">
         <button className="link" onClick={openViewer}>
           Abrir recuperador de grabacion
+        </button>
+        <button className="link" onClick={openOptions}>
+          Opciones (microfono, calidad, auto-split)
         </button>
         <p className="consent">Avisa a los participantes y graba solo con su consentimiento.</p>
       </footer>

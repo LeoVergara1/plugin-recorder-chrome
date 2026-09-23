@@ -218,6 +218,18 @@ plugin-recorder-chrome/
     `dist/` plano y coherente con el manifest.
 *   Pendiente: pruebas en Meet real, privacy policy / Web Store.
 
+## Fix mic (2026-09-23): “se escucha a los demás pero no mi voz”
+
+Causa raíz: el audio de los demás viene de la pestaña (siempre se captura bien);
+tu voz viene de un `getUserMedia` de mic separado. Si ese mic falla (permiso
+denegado, dispositivo equivocado, mic del SO), la extensión seguía grabando
+solo-pestaña **en silencio**: el popup se cerraba y nadie se enteraba.
+*   Medidor de nivel en vivo (`MIC_LEVEL` desde el offscreen) + botón **Probar micrófono**.
+*   Estado `micIncluded` real: el popup muestra «Mic en mezcla» + nivel, o aviso si no quedó incluido.
+*   Si el mic falla al iniciar, el popup **ya no se cierra**: muestra el aviso y ofrece «Grabar sin micrófono».
+*   Selector de dispositivo en opciones (para cuando Meet usa otro micro que el del sistema).
+*   Guía de diagnóstico en `README` (incl. permiso de mic en macOS).
+
 ## 9. Siguiente paso inmediato
 
 Probar en Chrome (`chrome://extensions` → Load unpacked → `dist/`): grabar una pestaña

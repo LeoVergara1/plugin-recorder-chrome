@@ -17,6 +17,8 @@ const SPLIT_CHOICES = [
 function Options() {
   const [d, setD] = useState<RecorderDefaults>({ ...DEFAULT_DEFAULTS });
   const [saved, setSaved] = useState(false);
+  const [devices, setDevices] = useState<{ deviceId: string; label: string }[]>([]);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     void loadDefaults().then(setD);
@@ -27,6 +29,27 @@ function Options() {
     await saveDefaults(next);
     setSaved(true);
     window.setTimeout(() => setSaved(false), 1500);
+  }
+
+  // Lista los microfonos disponibles. Requiere conceder el permiso una vez;
+  // sin el, los nombres salen vacios. Importante si Meet usa un micro
+  // distinto al del sistema: aqui puedes fijar el mismo.
+  async function detectDevices() {
+    setScanning(true);
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      for (const t of s.getTracks()) t.stop();
+      const all = await navigator.mediaDevices.enumerateDevices();
+      setDevices(
+        all
+          .filter((m) => m.kind === 'audioinput')
+          .map((m) => ({ deviceId: m.deviceId, label: m.label })),
+      );
+    } catch {
+      setDevices([]);
+    } finally {
+      setScanning(false);
+    }
   }
 
   const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 };
@@ -51,6 +74,30 @@ function Options() {
           <option value="1080p">1080p</option>
         </select>
       </label>
+
+      <div style={row}>
+        <button onClick={detectDevices} disabled={scanning}>
+          {scanning ? 'Detectando…' : 'Detectar micrófonos'}
+        </button>
+        <select
+          value={d.micDeviceId ?? ''}
+          disabled={devices.length === 0}
+          onChange={(e) => persist({ ...d, micDeviceId: e.target.value || null })}
+        >
+          <option value="">Micrófono del sistema</option>
+          {devices.map((m) => (
+            <option key={m.deviceId} value={m.deviceId}>
+              {m.label || `Micrófono ${m.deviceId.slice(0, 6)}…`}
+            </option>
+          ))}
+        </select>
+      </div>
+      {devices.length === 0 && (
+        <p style={{ fontSize: 13, color: '#5f6368' }}>
+          Si tu voz no queda en las grabaciones, pulsa «Detectar micrófonos» y elige el mismo
+          micro que usas en Meet.
+        </p>
+      )}
 
       <label style={row}>
         Dividir grabaciones largas
