@@ -9,6 +9,8 @@
 
 import {
   KEEPALIVE_ALARM,
+  SPLIT_ALARM,
+  SPLIT_MINUTES,
   STORAGE_KEY,
   type ContentToSW,
   type OffscreenToSW,
@@ -55,9 +57,20 @@ async function handleStart(includeMic: boolean, quality: Quality): Promise<{ ok:
     return { ok: false, error: `No se pudo capturar la pestana: ${e instanceof Error ? e.message : String(e)}` };
   }
 
-  await saveState({ isRecording: true, startedAt: Date.now(), tabId: tab.id, includeMic, quality });
+  await saveState({
+    isRecording: true,
+    paused: false,
+    startedAt: Date.now(),
+    pausedTotalMs: 0,
+    pauseStartedAt: null,
+    tabId: tab.id,
+    includeMic,
+    quality,
+    partIndex: 1,
+  });
   setBadge(true);
   await chrome.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 0.5 });
+  await chrome.alarms.create(SPLIT_ALARM, { periodInMinutes: SPLIT_MINUTES });
 
   await chrome.runtime.sendMessage({
     type: 'OFFSCREEN_START',
@@ -65,7 +78,38 @@ async function handleStart(includeMic: boolean, quality: Quality): Promise<{ ok:
     includeMic,
     quality,
     tabId: tab.id,
+    partIndex: 1,
   });
+  return { ok: true };
+}
+
+async function forwardToOffscreen(msg: object): Promise<void> {
+  try {
+    await chrome.runtime.sendMessage(msg);
+  } catch {
+    // El offscreen puede no existir; el estado ya quedo persistido.
+  }
+}
+
+async function handlePause(): Promise<{ ok: boolean }> {
+  const s = await loadState();
+  if (!s.isRecording || s.paused) return { ok: true };
+  await saveState({ ...s, paused: true, pauseStartedAt: Date.now() });
+  await forwardToOffscreen({ type: 'OFFSCREEN_PAUSE' });
+  return { ok: true };
+}
+
+async function handleResume(): Promise<{ ok: boolean }> {
+  const s = await loadState();
+  if (!s.isRecording || !s.paused) return { ok: true };
+  const now = Date.now();
+  await saveState({
+    ...s,
+    paused: false,
+    pausedTotalMs: s.pausedTotalMs + (s.pauseStartedAt ? now - s.pauseStartedAt : 0),
+    pauseStartedAt: null,
+  });
+  await forwardToOffscreen({ type: 'OFFSCREEN_RESUME' });
   return { ok: true };
 }
 
@@ -78,6 +122,7 @@ async function handleStop(): Promise<void> {
   await saveState({ ...DEFAULT_STATE });
   setBadge(false);
   await chrome.alarms.clear(KEEPALIVE_ALARM);
+  await chrome.alarms.clear(SPLIT_ALARM);
 }
 
 chrome.runtime.onMessage.addListener(
@@ -97,10 +142,23 @@ chrome.runtime.onMessage.addListener(
           sendResponse({ ok: true });
           break;
         }
+        case 'PAUSE': {
+          sendResponse(await handlePause());
+          break;
+        }
+        case 'RESUME': {
+          sendResponse(await handleResume());
+          break;
+        }
         case 'RECORDING_STARTED': {
           const s = await loadState();
           await saveState({ ...s, isRecording: true });
           setBadge(true);
+          break;
+        }
+        case 'RECORDING_SPLIT': {
+          const s = await loadState();
+          await saveState({ ...s, partIndex: msg.part, paused: false });
           break;
         }
         case 'RECORDING_STOPPED':
@@ -108,6 +166,7 @@ chrome.runtime.onMessage.addListener(
           await saveState({ ...DEFAULT_STATE });
           setBadge(false);
           await chrome.alarms.clear(KEEPALIVE_ALARM);
+          await chrome.alarms.clear(SPLIT_ALARM);
           break;
         }
         case 'MEET_ENDED': {
@@ -130,9 +189,18 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 
 // Keepalive: despertar al SW periodicamente durante grabaciones largas.
+// Split: cada SPLIT_MINUTES se cierra la parte actual y sigue la siguiente.
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === KEEPALIVE_ALARM) {
     void chrome.storage.local.get(STORAGE_KEY);
+  } else if (alarm.name === SPLIT_ALARM) {
+    void (async () => {
+      const s = await loadState();
+      // Si esta pausado se omite este tick; el siguiente parte la grabacion.
+      if (s.isRecording && !s.paused) {
+        await forwardToOffscreen({ type: 'OFFSCREEN_SPLIT' });
+      }
+    })();
   }
 });
 

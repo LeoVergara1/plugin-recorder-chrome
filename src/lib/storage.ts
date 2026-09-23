@@ -4,10 +4,14 @@ import { STORAGE_KEY, type RecordingState } from './types';
 
 export const DEFAULT_STATE: RecordingState = {
   isRecording: false,
+  paused: false,
   startedAt: null,
+  pausedTotalMs: 0,
+  pauseStartedAt: null,
   tabId: null,
   includeMic: true,
   quality: '720p',
+  partIndex: 1,
 };
 
 export async function loadState(): Promise<RecordingState> {

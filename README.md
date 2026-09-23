@@ -42,7 +42,7 @@ src/
 ├── manifest.json              # fuente (se copia a dist/ en el build)
 ├── background/service-worker.ts  # orquesta: gesto -> streamId -> offscreen -> estado
 ├── offscreen/                 # MediaRecorder + mezcla tab+mic (AudioContext)
-├── popup/                     # UI React: start/stop, mic, calidad, timer
+├── popup/                     # UI React: start/stop/pause/resume, mic (con preflight de permiso), calidad, timer
 ├── content/tab-detector.ts    # auto-stop al colgar en Meet sin cerrar pestaña
 ├── recorder-page/             # viewer: recompone chunks de IndexedDB tras crash
 └── lib/                       # types, mixer, storage (IDB), utils
@@ -53,5 +53,8 @@ src/
 - Si cambias de pestaña, Chrome puede pausar/throttle el render de la pestaña grabada
   (video congelado o huecos). Para mejor calidad, mantén visible la pestaña.
 - Cerrar la pestaña grabada termina la captura (auto-stop + descarga parcial).
-- Si el micrófono se deniega, se sigue grabando solo el audio de la pestaña.
+- Si el micrófono se deniega, se avisa y se sigue grabando solo el audio de la pestaña.
 - Grabaciones muy largas se guardan por chunks (1s) en memoria + IndexedDB.
+- Auto-split cada 30 min: se descarga `...-p1.webm`, `...-p2.webm`, etc. sin cortar la sesión.
+  El recuperador solo reconstruye la parte en curso.
+- El timer descuenta el tiempo en pausa.

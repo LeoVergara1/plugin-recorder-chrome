@@ -174,10 +174,11 @@ plugin-recorder-chrome/
 *   [ ] Criterio éxito: grabar YouTube 30s y Meet de prueba 2 min, archivo reproducible.
 
 **Fase 2 – Audio mixto + robustez (2-3 días)**
-*   [ ] Mix tab+mic con AudioContext, toggle mic, no mutear pestaña.
-*   [ ] Keepalive alarms, persistencia storage, auto-stop al cerrar Meet.
-*   [ ] Chunks a IndexedDB + recuperación tras crash.
-*   [ ] Selector calidad, pause/resume.
+*   [x] Mix tab+mic con AudioContext, toggle mic, no mutear pestaña.
+*   [x] Keepalive alarms, persistencia storage, auto-stop al cerrar Meet.
+*   [x] Chunks a IndexedDB + recuperación tras crash.
+*   [x] Selector calidad, pause/resume (timer descuenta pausas).
+*   [x] Extra: preflight de permiso de mic en el popup + auto-split cada 30 min (`-p1`, `-p2`…).
 
 **Fase 3 – Pulido Meet (1-2 días)**
 *   [ ] Content script detector, validación URL, aviso “mantén Meet visible”.
@@ -210,12 +211,12 @@ plugin-recorder-chrome/
 5. Solo video por ahora (sin transcripción).
 6. Git inicializado en la raíz (`main`, con `.gitignore` + `.nvmrc` → Node 20).
 
-**Estado scaffold (Fase 0 + 1 + 2 parcial, verificado con `npm run typecheck` + `npm run build`):**
-*   `src/manifest.json`, `src/background/service-worker.ts`, `src/offscreen/`, `src/popup/` (React),
-    `src/content/tab-detector.ts` (auto-stop en Meet), `src/recorder-page/viewer.tsx`,
-    `src/lib/` (types/mixer/storage-IDB/utils). `dist/` plano y coherente con el manifest.
-*   Pendiente: iconos finales, página de permisos de mic previa, pause/resume,
-    descargas parciales cada 30 min, pruebas en Meet real, privacy policy / Web Store.
+**Estado (Fase 0 + 1 + 2 completas, verificado con `npm run typecheck` + `npm run build`):**
+*   `src/manifest.json`, `src/background/service-worker.ts`, `src/offscreen/` (pause/resume/split),
+    `src/popup/` (React + preflight mic), `src/content/tab-detector.ts`,
+    `src/recorder-page/viewer.tsx`, `src/lib/` (types/mixer/storage-IDB/utils).
+    `dist/` plano y coherente con el manifest.
+*   Pendiente: iconos finales, pruebas en Meet real, privacy policy / Web Store.
 
 ## 9. Siguiente paso inmediato
 

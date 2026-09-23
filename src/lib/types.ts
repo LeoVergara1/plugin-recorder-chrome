@@ -5,27 +5,39 @@ export type Quality = '720p' | '1080p';
 
 export interface RecordingState {
   isRecording: boolean;
+  paused: boolean;
   startedAt: number | null;
+  /** Milisegundos acumulados en pausa (para que el timer no cuente pausas). */
+  pausedTotalMs: number;
+  pauseStartedAt: number | null;
   tabId: number | null;
   includeMic: boolean;
   quality: Quality;
+  /** Parte actual (auto-split cada SPLIT_MINUTES). */
+  partIndex: number;
 }
 
 // Popup -> Service Worker
 export type PopupToSW =
   | { type: 'GET_STATE' }
   | { type: 'START'; includeMic: boolean; quality: Quality }
-  | { type: 'STOP' };
+  | { type: 'STOP' }
+  | { type: 'PAUSE' }
+  | { type: 'RESUME' };
 
 // Service Worker -> Offscreen
 export type SWToOffscreen =
-  | { type: 'OFFSCREEN_START'; streamId: string; includeMic: boolean; quality: Quality; tabId: number }
-  | { type: 'OFFSCREEN_STOP' };
+  | { type: 'OFFSCREEN_START'; streamId: string; includeMic: boolean; quality: Quality; tabId: number; partIndex: number }
+  | { type: 'OFFSCREEN_STOP' }
+  | { type: 'OFFSCREEN_PAUSE' }
+  | { type: 'OFFSCREEN_RESUME' }
+  | { type: 'OFFSCREEN_SPLIT' };
 
 // Offscreen -> Service Worker
 export type OffscreenToSW =
   | { type: 'RECORDING_STARTED'; micIncluded: boolean }
   | { type: 'RECORDING_STOPPED'; filename: string }
+  | { type: 'RECORDING_SPLIT'; filename: string; part: number }
   | { type: 'RECORDING_ERROR'; message: string };
 
 // Content (Meet) -> Service Worker
@@ -33,3 +45,5 @@ export type ContentToSW = { type: 'MEET_ENDED' };
 
 export const STORAGE_KEY = 'recorder:state';
 export const KEEPALIVE_ALARM = 'recorder-keepalive';
+export const SPLIT_ALARM = 'recorder-split';
+export const SPLIT_MINUTES = 30;

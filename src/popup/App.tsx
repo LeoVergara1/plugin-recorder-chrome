@@ -1,13 +1,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Quality, RecordingState } from '../lib/types';
 import { DEFAULT_STATE } from '../lib/storage';
-import { formatElapsed } from '../lib/utils';
+import { computeElapsedMs, formatElapsed } from '../lib/utils';
+
+// Pide el permiso de microfono en el popup (gesto del usuario) antes de
+// iniciar, para que el offscreen lo tenga concedido. Devuelve true si OK.
+async function ensureMicPermission(): Promise<boolean> {
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+    for (const t of s.getTracks()) t.stop();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export default function App() {
   const [state, setState] = useState<RecordingState>({ ...DEFAULT_STATE });
   const [now, setNow] = useState<number>(Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -35,10 +48,17 @@ export default function App() {
   async function handleStart() {
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
+      let includeMic = state.includeMic;
+      if (includeMic && !(await ensureMicPermission())) {
+        includeMic = false;
+        setState((s) => ({ ...s, includeMic: false }));
+        setNotice('Microfono denegado: se grabara solo el audio de la pestana.');
+      }
       const res = await chrome.runtime.sendMessage({
         type: 'START',
-        includeMic: state.includeMic,
+        includeMic,
         quality: state.quality,
       });
       if (!res?.ok) {
@@ -55,11 +75,11 @@ export default function App() {
     }
   }
 
-  async function handleStop() {
+  async function sendQuiet(type: 'STOP' | 'PAUSE' | 'RESUME') {
     setBusy(true);
     setError(null);
     try {
-      await chrome.runtime.sendMessage({ type: 'STOP' });
+      await chrome.runtime.sendMessage({ type });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -72,7 +92,7 @@ export default function App() {
     void chrome.tabs.create({ url: chrome.runtime.getURL('viewer.html') });
   }
 
-  const elapsed = state.startedAt ? formatElapsed(now - state.startedAt) : '00:00';
+  const elapsed = formatElapsed(computeElapsedMs(state, now));
 
   return (
     <div className="wrap">
@@ -84,7 +104,9 @@ export default function App() {
 
       <p className="hint">
         {state.isRecording
-          ? 'Grabando esta pestana (video + audio pestana + microfono si esta activado).'
+          ? `Grabando esta pestana${state.partIndex > 1 ? ` (parte ${state.partIndex})` : ''}${
+              state.paused ? ' — en pausa.' : '.'
+            }`
           : 'Graba la pestana activa. Queda en local, sin bots ni participantes extra.'}
       </p>
 
@@ -111,15 +133,27 @@ export default function App() {
       </label>
 
       {state.isRecording ? (
-        <button className="btn stop" disabled={busy} onClick={handleStop}>
-          {busy ? 'Deteniendo…' : 'Detener y descargar'}
-        </button>
+        <div className="btn-row">
+          {state.paused ? (
+            <button className="btn start" disabled={busy} onClick={() => sendQuiet('RESUME')}>
+              Reanudar
+            </button>
+          ) : (
+            <button className="btn secondary" disabled={busy} onClick={() => sendQuiet('PAUSE')}>
+              Pausar
+            </button>
+          )}
+          <button className="btn stop" disabled={busy} onClick={() => sendQuiet('STOP')}>
+            {busy ? 'Deteniendo…' : 'Detener y descargar'}
+          </button>
+        </div>
       ) : (
         <button className="btn start" disabled={busy} onClick={handleStart}>
           {busy ? 'Iniciando…' : 'Grabar esta pestana'}
         </button>
       )}
 
+      {notice && <p className="notice">{notice}</p>}
       {error && <p className="error">{error}</p>}
 
       <footer className="foot">

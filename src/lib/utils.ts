@@ -1,12 +1,12 @@
-import type { Quality } from './types';
+import type { Quality, RecordingState } from './types';
 
-export function buildFilename(prefix = 'tab-rec'): string {
+export function buildFilename(prefix = 'tab-rec', part = 1): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(
     d.getMinutes(),
   )}${pad(d.getSeconds())}`;
-  return `${prefix}-${stamp}.webm`;
+  return `${prefix}-${stamp}-p${part}.webm`;
 }
 
 export function formatElapsed(ms: number): string {
@@ -16,6 +16,14 @@ export function formatElapsed(ms: number): string {
   const s = total % 60;
   const pad = (n: number) => String(n).padStart(2, '0');
   return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
+/** Tiempo grabado efectivo: descuenta lo acumulado en pausa. */
+export function computeElapsedMs(s: RecordingState, now: number): number {
+  if (!s.startedAt) return 0;
+  let ms = now - s.startedAt - s.pausedTotalMs;
+  if (s.paused && s.pauseStartedAt) ms -= now - s.pauseStartedAt;
+  return Math.max(0, ms);
 }
 
 export function qualityConstraints(quality: Quality): {
