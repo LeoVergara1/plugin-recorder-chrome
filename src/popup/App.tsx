@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Quality, RecordingState } from '../lib/types';
 import { DEFAULT_STATE } from '../lib/storage';
-import { computeElapsedMs, formatElapsed } from '../lib/utils';
+import { loadDefaults } from '../lib/defaults';
+import { computeElapsedMs, formatElapsed, humanizeError } from '../lib/utils';
 
 // Pide el permiso de microfono en el popup (gesto del usuario) antes de
 // iniciar, para que el offscreen lo tenga concedido. Devuelve true si OK.
@@ -32,7 +33,20 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    // Al abrir en reposo, aplicar los defaults de la pagina de opciones.
+    void (async () => {
+      await refresh();
+      try {
+        const res = await chrome.runtime.sendMessage({ type: 'GET_STATE' });
+        const s = res?.state as RecordingState | undefined;
+        if (s && !s.isRecording) {
+          const d = await loadDefaults();
+          setState({ ...s, includeMic: d.includeMic, quality: d.quality });
+        }
+      } catch {
+        // noop
+      }
+    })();
   }, [refresh]);
 
   // Reloj + sincronizacion de estado mientras graba.
@@ -62,13 +76,13 @@ export default function App() {
         quality: state.quality,
       });
       if (!res?.ok) {
-        setError(res?.error ?? 'No se pudo iniciar la grabacion.');
+        setError(humanizeError(res?.error ?? 'No se pudo iniciar la grabacion.'));
       } else {
         // Cerrar el popup evita que el cambio de foco interfiera con la captura.
         window.close();
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(humanizeError(e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
       void refresh();
@@ -81,11 +95,20 @@ export default function App() {
     try {
       await chrome.runtime.sendMessage({ type });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(humanizeError(e instanceof Error ? e.message : String(e)));
     } finally {
       setBusy(false);
       void refresh();
     }
+  }
+
+  async function dismissLastError() {
+    try {
+      await chrome.runtime.sendMessage({ type: 'CLEAR_ERROR' });
+    } catch {
+      // noop
+    }
+    setState((s) => ({ ...s, lastError: null }));
   }
 
   function openViewer() {
@@ -106,7 +129,7 @@ export default function App() {
         {state.isRecording
           ? `Grabando esta pestana${state.partIndex > 1 ? ` (parte ${state.partIndex})` : ''}${
               state.paused ? ' — en pausa.' : '.'
-            }`
+            } Manten visible la pestana grabada para evitar huecos.`
           : 'Graba la pestana activa. Queda en local, sin bots ni participantes extra.'}
       </p>
 
@@ -155,6 +178,14 @@ export default function App() {
 
       {notice && <p className="notice">{notice}</p>}
       {error && <p className="error">{error}</p>}
+      {!state.isRecording && state.lastError && (
+        <p className="error">
+          Ultimo error: {humanizeError(state.lastError)}{' '}
+          <button className="link" onClick={dismissLastError}>
+            descartar
+          </button>
+        </p>
+      )}
 
       <footer className="foot">
         <button className="link" onClick={openViewer}>

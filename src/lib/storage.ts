@@ -12,6 +12,7 @@ export const DEFAULT_STATE: RecordingState = {
   includeMic: true,
   quality: '720p',
   partIndex: 1,
+  lastError: null,
 };
 
 export async function loadState(): Promise<RecordingState> {

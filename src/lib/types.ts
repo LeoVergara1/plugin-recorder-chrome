@@ -3,6 +3,19 @@
 
 export type Quality = '720p' | '1080p';
 
+export interface RecorderDefaults {
+  includeMic: boolean;
+  quality: Quality;
+  /** Minutos entre partes (0 = sin auto-split). */
+  splitMinutes: number;
+}
+
+export const DEFAULT_DEFAULTS: RecorderDefaults = {
+  includeMic: true,
+  quality: '720p',
+  splitMinutes: 30,
+};
+
 export interface RecordingState {
   isRecording: boolean;
   paused: boolean;
@@ -15,6 +28,8 @@ export interface RecordingState {
   quality: Quality;
   /** Parte actual (auto-split cada SPLIT_MINUTES). */
   partIndex: number;
+  /** Ultimo error asincrono (se muestra al abrir el popup). */
+  lastError: string | null;
 }
 
 // Popup -> Service Worker
@@ -23,7 +38,8 @@ export type PopupToSW =
   | { type: 'START'; includeMic: boolean; quality: Quality }
   | { type: 'STOP' }
   | { type: 'PAUSE' }
-  | { type: 'RESUME' };
+  | { type: 'RESUME' }
+  | { type: 'CLEAR_ERROR' };
 
 // Service Worker -> Offscreen
 export type SWToOffscreen =
@@ -44,6 +60,7 @@ export type OffscreenToSW =
 export type ContentToSW = { type: 'MEET_ENDED' };
 
 export const STORAGE_KEY = 'recorder:state';
+export const DEFAULTS_KEY = 'recorder:defaults';
 export const KEEPALIVE_ALARM = 'recorder-keepalive';
 export const SPLIT_ALARM = 'recorder-split';
 export const SPLIT_MINUTES = 30;

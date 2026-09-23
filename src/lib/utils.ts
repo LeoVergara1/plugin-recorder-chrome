@@ -26,6 +26,30 @@ export function computeElapsedMs(s: RecordingState, now: number): number {
   return Math.max(0, ms);
 }
 
+/** Traduce errores tecnicos (DOMException, tabCapture) a texto accionable. */
+export function humanizeError(raw: string): string {
+  const m = raw.toLowerCase();
+  if (m.includes('permission denied') || m.includes('notallowederror')) {
+    return 'Permiso denegado por el navegador. Revisa el icono de camara/microfono en la barra de direcciones y vuelve a intentar.';
+  }
+  if (m.includes('notfounderror') || m.includes('requested device not found')) {
+    return 'No se encontro microfono o la pestana dejo de estar disponible. Revisa tus dispositivos e intentalo de nuevo.';
+  }
+  if (m.includes('notsupportederror') || m.includes('not supported')) {
+    return 'Este contenido no se puede capturar con el codec disponible. Prueba con otra pestana o calidad.';
+  }
+  if (m.includes('could not establish connection') || m.includes('receiving end does not exist')) {
+    return 'La grabacion se interrumpio (pestana cerrada o extension recargada). Revisa tu carpeta de descargas por si quedo una parte.';
+  }
+  return raw;
+}
+
+/** Las paginas internas del navegador no se pueden capturar con tabCapture. */
+export function isCapturableUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  return !/^(chrome|edge|about|view-source|chrome-extension|devtools|opera|brave):/.test(url);
+}
+
 export function qualityConstraints(quality: Quality): {
   maxWidth: number;
   maxHeight: number;

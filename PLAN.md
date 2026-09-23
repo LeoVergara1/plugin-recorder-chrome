@@ -181,9 +181,9 @@ plugin-recorder-chrome/
 *   [x] Extra: preflight de permiso de mic en el popup + auto-split cada 30 min (`-p1`, `-p2`…).
 
 **Fase 3 – Pulido Meet (1-2 días)**
-*   [ ] Content script detector, validación URL, aviso “mantén Meet visible”.
-*   [ ] Manejo errores UX (permisos, tab no capturable, mimeType no soportado).
-*   [ ] Iconos finales, página opciones, consentimiento.
+*   [x] Content script detector (multi-idioma + vuelta a home), validación URL, aviso “mantén visible la pestaña”.
+*   [x] Manejo errores UX: páginas no capturables, errores humanizados, `lastError` persistente visible en popup.
+*   [x] Iconos finales (PNG 16/32/48/128 generados), página de opciones (defaults mic/calidad/split), consentimiento en popup + opciones.
 
 **Fase 4 – Publicación (1 día + review Google)**
 *   [ ] Privacy policy, screenshots, descripción Web Store, justificación permisos `tabCapture`.
@@ -211,12 +211,12 @@ plugin-recorder-chrome/
 5. Solo video por ahora (sin transcripción).
 6. Git inicializado en la raíz (`main`, con `.gitignore` + `.nvmrc` → Node 20).
 
-**Estado (Fase 0 + 1 + 2 completas, verificado con `npm run typecheck` + `npm run build`):**
+**Estado (Fase 0 + 1 + 2 + 3 completas, verificado con `npm run typecheck` + `npm run build`):**
 *   `src/manifest.json`, `src/background/service-worker.ts`, `src/offscreen/` (pause/resume/split),
-    `src/popup/` (React + preflight mic), `src/content/tab-detector.ts`,
-    `src/recorder-page/viewer.tsx`, `src/lib/` (types/mixer/storage-IDB/utils).
+    `src/popup/` (React + preflight mic + defaults), `src/options/`, `src/icons/`,
+    `src/content/tab-detector.ts`, `src/recorder-page/viewer.tsx`, `src/lib/`.
     `dist/` plano y coherente con el manifest.
-*   Pendiente: iconos finales, pruebas en Meet real, privacy policy / Web Store.
+*   Pendiente: pruebas en Meet real, privacy policy / Web Store.
 
 ## 9. Siguiente paso inmediato
 

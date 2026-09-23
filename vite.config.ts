@@ -20,6 +20,7 @@ export default defineConfig({
         popup: resolve(src, 'popup.html'),
         offscreen: resolve(src, 'offscreen.html'),
         viewer: resolve(src, 'viewer.html'),
+        options: resolve(src, 'options.html'),
         background: resolve(src, 'background/service-worker.ts'),
         content: resolve(src, 'content/tab-detector.ts'),
       },

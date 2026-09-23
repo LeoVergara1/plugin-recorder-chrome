@@ -10,7 +10,6 @@
 import {
   KEEPALIVE_ALARM,
   SPLIT_ALARM,
-  SPLIT_MINUTES,
   STORAGE_KEY,
   type ContentToSW,
   type OffscreenToSW,
@@ -18,6 +17,8 @@ import {
   type Quality,
 } from '../lib/types';
 import { DEFAULT_STATE, loadState, saveState } from '../lib/storage';
+import { loadDefaults } from '../lib/defaults';
+import { isCapturableUrl } from '../lib/utils';
 
 async function ensureOffscreen(): Promise<void> {
   const contexts = await chrome.runtime.getContexts({});
@@ -47,6 +48,13 @@ function setBadge(recording: boolean): void {
 async function handleStart(includeMic: boolean, quality: Quality): Promise<{ ok: boolean; error?: string }> {
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (!tab?.id) return { ok: false, error: 'No hay pestana activa para grabar.' };
+  if (!isCapturableUrl(tab.url)) {
+    return {
+      ok: false,
+      error:
+        'Esta pagina no se puede grabar: las paginas internas del navegador (chrome://, Web Store, etc.) estan protegidas. Abre el Meet o el sitio en una pestana normal.',
+    };
+  }
 
   await ensureOffscreen();
 
@@ -67,10 +75,14 @@ async function handleStart(includeMic: boolean, quality: Quality): Promise<{ ok:
     includeMic,
     quality,
     partIndex: 1,
+    lastError: null,
   });
   setBadge(true);
   await chrome.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 0.5 });
-  await chrome.alarms.create(SPLIT_ALARM, { periodInMinutes: SPLIT_MINUTES });
+  const defaults = await loadDefaults();
+  if (defaults.splitMinutes > 0) {
+    await chrome.alarms.create(SPLIT_ALARM, { periodInMinutes: defaults.splitMinutes });
+  }
 
   await chrome.runtime.sendMessage({
     type: 'OFFSCREEN_START',
@@ -150,6 +162,12 @@ chrome.runtime.onMessage.addListener(
           sendResponse(await handleResume());
           break;
         }
+        case 'CLEAR_ERROR': {
+          const s = await loadState();
+          await saveState({ ...s, lastError: null });
+          sendResponse({ ok: true });
+          break;
+        }
         case 'RECORDING_STARTED': {
           const s = await loadState();
           await saveState({ ...s, isRecording: true });
@@ -161,9 +179,15 @@ chrome.runtime.onMessage.addListener(
           await saveState({ ...s, partIndex: msg.part, paused: false });
           break;
         }
-        case 'RECORDING_STOPPED':
-        case 'RECORDING_ERROR': {
+        case 'RECORDING_STOPPED': {
           await saveState({ ...DEFAULT_STATE });
+          setBadge(false);
+          await chrome.alarms.clear(KEEPALIVE_ALARM);
+          await chrome.alarms.clear(SPLIT_ALARM);
+          break;
+        }
+        case 'RECORDING_ERROR': {
+          await saveState({ ...DEFAULT_STATE, lastError: msg.message });
           setBadge(false);
           await chrome.alarms.clear(KEEPALIVE_ALARM);
           await chrome.alarms.clear(SPLIT_ALARM);

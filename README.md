@@ -43,6 +43,8 @@ src/
 ├── background/service-worker.ts  # orquesta: gesto -> streamId -> offscreen -> estado
 ├── offscreen/                 # MediaRecorder + mezcla tab+mic (AudioContext)
 ├── popup/                     # UI React: start/stop/pause/resume, mic (con preflight de permiso), calidad, timer
+├── options/                   # pagina de opciones: defaults de mic, calidad y auto-split
+├── icons/                     # iconos PNG (16/32/48/128)
 ├── content/tab-detector.ts    # auto-stop al colgar en Meet sin cerrar pestaña
 ├── recorder-page/             # viewer: recompone chunks de IndexedDB tras crash
 └── lib/                       # types, mixer, storage (IDB), utils
@@ -55,6 +57,10 @@ src/
 - Cerrar la pestaña grabada termina la captura (auto-stop + descarga parcial).
 - Si el micrófono se deniega, se avisa y se sigue grabando solo el audio de la pestaña.
 - Grabaciones muy largas se guardan por chunks (1s) en memoria + IndexedDB.
-- Auto-split cada 30 min: se descarga `...-p1.webm`, `...-p2.webm`, etc. sin cortar la sesión.
-  El recuperador solo reconstruye la parte en curso.
+- Auto-split configurable en opciones (15/30/60 min u off): se descarga `...-p1.webm`,
+  `...-p2.webm`, etc. sin cortar la sesión. El recuperador solo reconstruye la parte en curso.
+- Las paginas internas del navegador (chrome://, Web Store, etc.) no se pueden grabar;
+  la extension lo detecta y lo explica antes de intentarlo.
+- Los errores de una sesion (p. ej. microfono desconectado a mitad) quedan guardados
+  y se muestran al abrir el popup.
 - El timer descuenta el tiempo en pausa.
